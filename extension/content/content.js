@@ -130,9 +130,9 @@
           updateStatus(shadow, 'Sending to speech-to-text...');
           try {
             const transcript = await ApiClient.speechToText(audioBlob);
-            shadow.querySelector('.text-input').value = transcript;
             updateStatus(shadow, `Transcript: "${transcript}"`);
-            // Auto-send the transcript
+            // Clear input and auto-send the transcript
+            shadow.querySelector('.text-input').value = '';
             handleUserInput(shadow, transcript);
           } catch (err) {
             updateStatus(shadow, `STT Error: ${err.message}`);
