@@ -17,21 +17,6 @@
 
 ## Step 1: Start the Python Speech Server
 
-### Stop any existing server first
-
-```powershell
-# In terminal, find and kill any existing process on port 8000
-Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-
-### Start the server
-
-```powershell
-cd "c:\Users\sverma\ROC\Saarthi AI\saarthi-ai\backend\Speech-Module"
-
-# Ensure .env exists (no API key needed for STT/TTS)
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-
 # Start the FastAPI server
 python -m uvicorn main:app --port 8000
 ```
