@@ -1,0 +1,80 @@
+/* SAARTHI AI — Popup Styles */
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 280px;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #1e1e2e;
+  color: #cdd6f4;
+}
+
+.popup-container {
+  padding: 20px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.popup-header .logo {
+  font-size: 24px;
+}
+
+.popup-header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #89b4fa;
+  margin: 0;
+}
+
+.popup-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: #181825;
+  border-radius: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a6e3a1;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #a6e3a1;
+  font-weight: 500;
+}
+
+.popup-instruction {
+  font-size: 13px;
+  color: #6c7086;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+kbd {
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #cdd6f4;
+  font-family: monospace;
+}
+
+.popup-footer {
+  border-top: 1px solid #313244;
+  padding-top: 10px;
+  font-size: 11px;
+  color: #45475a;
+  text-align: right;
+}

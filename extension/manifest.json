@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "SAARTHI AI",
+  "version": "1.0.0",
+  "description": "Voice-driven AI assistant for Conga CLM",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://*.congaclm.com/*", "http://localhost/*"],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["utils/api-client.js", "utils/dom-analyzer.js", "utils/action-executor.js", "content/overlay.js", "content/content.js"],
+      "css": ["content/content.css"]
+    }
+  ],
+  "commands": {
+    "activate-saarthi": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Activate SAARTHI AI"
+    }
+  }
+}

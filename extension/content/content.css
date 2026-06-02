@@ -1,0 +1,10 @@
+/* SAARTHI AI — Floating Panel Styles */
+
+#saarthi-root {
+  all: initial;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
