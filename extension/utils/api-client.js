@@ -91,6 +91,7 @@ const ApiClient = (() => {
   function getMockResponse(request) {
     const input = (request.user_input || '').toLowerCase();
     const sessionId = request.session_id || crypto.randomUUID();
+    const mode = request.mode || 'action';
     const elements = (request.context && request.context.interactive_elements) || [];
 
     // Helper: find element by matching text/tag in DOM context
@@ -106,6 +107,11 @@ const ApiClient = (() => {
       return elements.find((el) =>
         el.tag === 'input' || el.tag === 'textarea' || el.selector?.includes('input')
       );
+    }
+
+    // --- GUIDE MODE: always return highlights, never execute actions ---
+    if (mode === 'guide') {
+      return buildGuideResponse(sessionId, input, elements, findByText, findByTag, findInput);
     }
 
     // --- ACTION: search/type into search box ---
@@ -171,35 +177,9 @@ const ApiClient = (() => {
       };
     }
 
-    // --- GUIDE: how to / help ---
-    if (input.includes('how') || input.includes('guide') || input.includes('help') || request.mode === 'guide') {
-      const steps = [];
-      const searchEl = findInput();
-      const navEl = findByTag('a') || findByText(['menu', 'home', 'nav']);
-      const btnEl = findByTag('button');
-
-      if (searchEl) {
-        steps.push({ step: steps.length + 1, instruction: `Use the search box to find what you need`, highlight_selector: searchEl.selector });
-      }
-      if (navEl) {
-        steps.push({ step: steps.length + 1, instruction: `Click "${navEl.text || 'this link'}" to navigate`, highlight_selector: navEl.selector });
-      }
-      if (btnEl) {
-        steps.push({ step: steps.length + 1, instruction: `Click "${btnEl.text || 'this button'}" to take action`, highlight_selector: btnEl.selector });
-      }
-      if (steps.length === 0) {
-        steps.push({ step: 1, instruction: 'No interactive elements detected on this page', highlight_selector: 'body' });
-      }
-
-      return {
-        session_id: sessionId,
-        message: `Here's how to use this page (${steps.length} steps):`,
-        mode: 'guide',
-        actions: null,
-        guide_steps: steps,
-        done: true,
-        follow_up: null,
-      };
+    // --- GUIDE: how to / help (in action mode, explicit guide keywords) ---
+    if (input.includes('how') || input.includes('guide') || input.includes('help')) {
+      return buildGuideResponse(sessionId, input, elements, findByText, findByTag, findInput);
     }
 
     // --- ACTION: scroll ---
@@ -240,6 +220,39 @@ const ApiClient = (() => {
       mode: request.mode || 'action',
       actions: null,
       guide_steps: null,
+      done: true,
+      follow_up: null,
+    };
+  }
+
+  /**
+   * Build a guide response with highlights based on real DOM elements.
+   */
+  function buildGuideResponse(sessionId, input, elements, findByText, findByTag, findInput) {
+    const steps = [];
+    const searchEl = findInput();
+    const navEl = findByTag('a') || findByText(['menu', 'home', 'nav']);
+    const btnEl = findByTag('button');
+
+    if (searchEl) {
+      steps.push({ step: steps.length + 1, instruction: 'Use the search box to find what you need', highlight_selector: searchEl.selector });
+    }
+    if (navEl) {
+      steps.push({ step: steps.length + 1, instruction: `Click "${navEl.text || 'this link'}" to navigate`, highlight_selector: navEl.selector });
+    }
+    if (btnEl) {
+      steps.push({ step: steps.length + 1, instruction: `Click "${btnEl.text || 'this button'}" to take action`, highlight_selector: btnEl.selector });
+    }
+    if (steps.length === 0) {
+      steps.push({ step: 1, instruction: 'No interactive elements detected on this page', highlight_selector: 'body' });
+    }
+
+    return {
+      session_id: sessionId,
+      message: `Here's how to use this page (${steps.length} steps):`,
+      mode: 'guide',
+      actions: null,
+      guide_steps: steps,
       done: true,
       follow_up: null,
     };
