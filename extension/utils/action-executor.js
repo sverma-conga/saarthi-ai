@@ -44,6 +44,8 @@ const ActionExecutor = (() => {
         return delay(action.duration_ms || 500);
       case 'navigate':
         return doNavigate(action);
+      case 'submit':
+        return doSubmit(action);
       default:
         throw new Error(`Unknown action type: ${action.type}`);
     }
@@ -72,6 +74,23 @@ const ActionExecutor = (() => {
     highlightBriefly(el);
     el.value = action.value;
     el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function doSubmit(action) {
+    const el = findElement(action.selector);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightBriefly(el);
+    // Try submitting the parent form first
+    const form = el.closest('form');
+    if (form) {
+      form.requestSubmit();
+      return;
+    }
+    // Fallback: dispatch Enter keypress
+    const enterEvent = new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+    });
+    el.dispatchEvent(enterEvent);
   }
 
   function doScroll(action) {

@@ -120,6 +120,7 @@ const ApiClient = (() => {
           actions: [
             { step: 1, type: 'click', selector: searchEl.selector, description: 'Click search box' },
             { step: 2, type: 'type', selector: searchEl.selector, value: searchTerm, description: `Type "${searchTerm}"` },
+            { step: 3, type: 'submit', selector: searchEl.selector, description: 'Press Enter to submit' },
           ],
           guide_steps: null,
           done: true,
