@@ -86,51 +86,130 @@ const ApiClient = (() => {
 
   /**
    * Mock orchestrator response for testing without Gautam's backend.
+   * Uses real selectors from the DOM context when available.
    */
   function getMockResponse(request) {
     const input = (request.user_input || '').toLowerCase();
     const sessionId = request.session_id || crypto.randomUUID();
+    const elements = (request.context && request.context.interactive_elements) || [];
 
-    // Pattern match common commands
+    // Helper: find element by matching text/tag in DOM context
+    function findByText(keywords) {
+      return elements.find((el) =>
+        keywords.some((kw) => (el.text || '').toLowerCase().includes(kw))
+      );
+    }
+    function findByTag(tag) {
+      return elements.find((el) => el.tag === tag);
+    }
+    function findInput() {
+      return elements.find((el) =>
+        el.tag === 'input' || el.tag === 'textarea' || el.selector?.includes('input')
+      );
+    }
+
+    // --- ACTION: search/type into search box ---
+    if (input.includes('search') || input.includes('type') || input.includes('find')) {
+      const searchTerm = input.replace(/search for|search|type|find/gi, '').trim() || 'test query';
+      const searchEl = findInput() || findByText(['search']);
+      if (searchEl) {
+        return {
+          session_id: sessionId,
+          message: `I'll search for "${searchTerm}".`,
+          mode: 'action',
+          actions: [
+            { step: 1, type: 'click', selector: searchEl.selector, description: 'Click search box' },
+            { step: 2, type: 'type', selector: searchEl.selector, value: searchTerm, description: `Type "${searchTerm}"` },
+          ],
+          guide_steps: null,
+          done: true,
+          follow_up: null,
+        };
+      }
+    }
+
+    // --- ACTION: click something by name ---
+    if (input.includes('click') || input.includes('press') || input.includes('open') || input.includes('go to')) {
+      // Try to find element matching user's words
+      const words = input.replace(/click|press|open|go to|the|button|link|on/gi, '').trim().split(/\s+/);
+      const matchEl = elements.find((el) =>
+        words.some((w) => w.length > 2 && (el.text || '').toLowerCase().includes(w))
+      );
+      const target = matchEl || findByTag('button') || findByTag('a') || elements[0];
+      if (target) {
+        return {
+          session_id: sessionId,
+          message: `Clicking "${target.text || target.tag}".`,
+          mode: 'action',
+          actions: [
+            { step: 1, type: 'click', selector: target.selector, description: `Click ${target.text || target.tag}` },
+          ],
+          guide_steps: null,
+          done: true,
+          follow_up: null,
+        };
+      }
+    }
+
+    // --- ACTION: filter/show ---
     if (input.includes('filter') || input.includes('show') || input.includes('today')) {
+      const filterBtn = findByText(['filter', 'sort', 'refine']) || findByTag('button');
+      const actions = [];
+      if (filterBtn) {
+        actions.push({ step: 1, type: 'click', selector: filterBtn.selector, description: `Click ${filterBtn.text || 'filter'}` });
+        actions.push({ step: 2, type: 'wait', duration_ms: 500 });
+      }
       return {
         session_id: sessionId,
-        message: "I'll filter the view to show today's items.",
+        message: "I'll try to filter the view.",
         mode: 'action',
-        actions: [
-          { step: 1, type: 'click', selector: '[data-testid="filter-btn"], .filter-button, button[title*="Filter"]', description: 'Open filter panel' },
-          { step: 2, type: 'wait', duration_ms: 500 },
-          { step: 3, type: 'click', selector: '[data-testid="date-filter"], .date-filter', description: 'Select date filter' },
-        ],
+        actions: actions.length > 0 ? actions : null,
         guide_steps: null,
-        done: false,
-        follow_up: "I'll verify the results after the filter is applied.",
+        done: actions.length > 0,
+        follow_up: actions.length > 0 ? null : 'No filter element found on this page.',
       };
     }
 
-    if (input.includes('how') || input.includes('guide') || input.includes('help')) {
+    // --- GUIDE: how to / help ---
+    if (input.includes('how') || input.includes('guide') || input.includes('help') || request.mode === 'guide') {
+      const steps = [];
+      const searchEl = findInput();
+      const navEl = findByTag('a') || findByText(['menu', 'home', 'nav']);
+      const btnEl = findByTag('button');
+
+      if (searchEl) {
+        steps.push({ step: steps.length + 1, instruction: `Use the search box to find what you need`, highlight_selector: searchEl.selector });
+      }
+      if (navEl) {
+        steps.push({ step: steps.length + 1, instruction: `Click "${navEl.text || 'this link'}" to navigate`, highlight_selector: navEl.selector });
+      }
+      if (btnEl) {
+        steps.push({ step: steps.length + 1, instruction: `Click "${btnEl.text || 'this button'}" to take action`, highlight_selector: btnEl.selector });
+      }
+      if (steps.length === 0) {
+        steps.push({ step: 1, instruction: 'No interactive elements detected on this page', highlight_selector: 'body' });
+      }
+
       return {
         session_id: sessionId,
-        message: "Here's how to navigate this page:",
+        message: `Here's how to use this page (${steps.length} steps):`,
         mode: 'guide',
         actions: null,
-        guide_steps: [
-          { step: 1, instruction: 'Look for the navigation menu on the left sidebar', highlight_selector: 'nav, .sidebar, [role="navigation"]' },
-          { step: 2, instruction: 'Click on the section you want to explore', highlight_selector: 'nav a, .sidebar a' },
-          { step: 3, instruction: 'Use the search bar to find specific items', highlight_selector: 'input[type="search"], .search-input, [placeholder*="Search"]' },
-        ],
+        guide_steps: steps,
         done: true,
         follow_up: null,
       };
     }
 
-    if (input.includes('click') || input.includes('press') || input.includes('open')) {
+    // --- ACTION: scroll ---
+    if (input.includes('scroll down') || input.includes('scroll up')) {
+      const direction = input.includes('up') ? 'up' : 'down';
       return {
         session_id: sessionId,
-        message: "I'll try to perform that action for you.",
+        message: `Scrolling ${direction}.`,
         mode: 'action',
         actions: [
-          { step: 1, type: 'click', selector: 'button, a, [role="button"]', description: 'Clicking the target element' },
+          { step: 1, type: 'scroll', direction, amount: 400 },
         ],
         guide_steps: null,
         done: true,
@@ -138,10 +217,25 @@ const ApiClient = (() => {
       };
     }
 
-    // Default response
+    // --- DEFAULT: use first DOM element ---
+    if (elements.length > 0) {
+      const first = elements[0];
+      return {
+        session_id: sessionId,
+        message: `I'll interact with the first element I found: "${first.text || first.tag}".`,
+        mode: 'action',
+        actions: [
+          { step: 1, type: 'click', selector: first.selector, description: `Click ${first.text || first.tag}` },
+        ],
+        guide_steps: null,
+        done: true,
+        follow_up: null,
+      };
+    }
+
     return {
       session_id: sessionId,
-      message: `I understood: "${request.user_input}". The orchestrator will process this once connected.`,
+      message: `I understood: "${request.user_input}". No interactive elements found to act on.`,
       mode: request.mode || 'action',
       actions: null,
       guide_steps: null,
