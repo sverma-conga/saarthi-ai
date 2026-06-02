@@ -1,0 +1,16 @@
+{
+  "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
+  "python.analysis.typeCheckingMode": "basic",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "restClient.environmentVariables": {
+    "local": {
+      "host": "http://localhost:8000"
+    }
+  }
+}

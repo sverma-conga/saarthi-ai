@@ -1,0 +1,37 @@
+@host = http://localhost:8000
+
+### Speech-to-Text
+POST {{host}}/speech-to-text
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="file"; filename="audio.wav"
+Content-Type: audio/wav
+
+< ./sample.wav
+------Boundary--
+
+### Text-to-Speech
+POST {{host}}/text-to-speech?text=Hello%20world
+
+### Full Pipeline (returns JSON with transcript + AI response + audio URL)
+POST {{host}}/pipeline
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="file"; filename="audio.wav"
+Content-Type: audio/wav
+
+< ./sample.wav
+------Boundary--
+
+### Pipeline Stream (returns audio directly)
+POST {{host}}/pipeline/stream
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="file"; filename="audio.wav"
+Content-Type: audio/wav
+
+< ./sample.wav
+------Boundary--

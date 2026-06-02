@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+    "ms-python.pylint",
+    "charliermarsh.ruff",
+    "tiangolo.fastapi-snippets",
+    "humao.rest-client",
+    "42Crunch.vscode-openapi",
+    "njpwerner.autodocstring",
+    "tamasfe.even-better-toml"
+  ]
+}
