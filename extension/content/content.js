@@ -149,53 +149,91 @@
     });
   }
 
+  const MAX_ITERATIONS = 10;
+
   async function handleUserInput(shadow, text) {
     const mode = shadow.querySelector('.mode-btn.active').dataset.mode;
     showResponse(shadow, `<div class="message user-message">${escapeHtml(text)}</div><div class="message ai-message">⏳ Processing...</div>`, 'html');
     updateStatus(shadow, `Sending to AI [${mode} mode]...`);
 
+    const sessionId = crypto.randomUUID();
+    let previousActions = [];
+    let lastError = null;
+    let iteration = 0;
+    let done = false;
+
     try {
-      const request = {
-        session_id: crypto.randomUUID(),
-        user_input: text,
-        mode: mode,
-        context: {
-          url: window.location.href,
-          page_title: document.title,
-          interactive_elements: DomAnalyzer.analyzeDom(),
-          visible_text_summary: DomAnalyzer.getVisibleTextSummary(),
-        },
-        previous_actions: [],
-        error_from_last_action: null,
-      };
+      while (!done && iteration < MAX_ITERATIONS) {
+        iteration++;
 
-      const response = await ApiClient.processIntent(request);
+        const request = {
+          session_id: sessionId,
+          user_input: text,
+          mode: mode,
+          context: {
+            url: window.location.href,
+            page_title: document.title,
+            interactive_elements: DomAnalyzer.analyzeDom(),
+            visible_text_summary: DomAnalyzer.getVisibleTextSummary(),
+          },
+          previous_actions: previousActions,
+          error_from_last_action: lastError,
+        };
 
-      // Display AI message
-      showResponse(shadow,
-        `<div class="message user-message">${escapeHtml(text)}</div>` +
-        `<div class="message ai-message">${escapeHtml(response.message)}</div>`,
-        'html'
-      );
+        updateStatus(shadow, iteration > 1
+          ? `🔄 Iteration ${iteration}/${MAX_ITERATIONS}...`
+          : `Sending to AI [${mode} mode]...`);
 
-      // Execute actions or show guide based on response mode
-      if (response.actions && response.actions.length > 0) {
-        updateStatus(shadow, '⚡ Executing actions...');
-        const result = await ActionExecutor.executeActions(response.actions);
-        if (result.success) {
-          updateStatus(shadow, `✓ Done — ${result.steps_completed} step(s) executed`);
-        } else {
-          updateStatus(shadow, `⚠️ Failed at step ${result.failed_step}: ${result.error}`);
+        const response = await ApiClient.processIntent(request);
+
+        // Display AI message
+        showResponse(shadow,
+          `<div class="message user-message">${escapeHtml(text)}</div>` +
+          `<div class="message ai-message">${escapeHtml(response.message)}</div>`,
+          'html'
+        );
+
+        // Play TTS for the response
+        playTTS(response.message);
+
+        // Execute actions or show guide based on response mode
+        if (response.actions && response.actions.length > 0) {
+          updateStatus(shadow, `⚡ Executing actions (iteration ${iteration})...`);
+          const result = await ActionExecutor.executeActions(response.actions);
+
+          // Track executed actions for next iteration
+          previousActions = previousActions.concat(response.actions.map((a, i) => ({
+            ...a,
+            executed: i < result.steps_completed,
+          })));
+
+          if (result.success) {
+            lastError = null;
+          } else {
+            lastError = `Step ${result.failed_step}: ${result.error}`;
+          }
+        } else if (response.guide_steps && response.guide_steps.length > 0) {
+          updateStatus(shadow, `📖 Guide: ${response.guide_steps.length} steps`);
+          GuideOverlay.showGuide(response.guide_steps);
+          done = true;
+          break;
         }
-      } else if (response.guide_steps && response.guide_steps.length > 0) {
-        updateStatus(shadow, `📖 Guide: ${response.guide_steps.length} steps`);
-        GuideOverlay.showGuide(response.guide_steps);
-      } else {
-        updateStatus(shadow, response.done ? '✓ Done' : '⏳ Awaiting next step...');
+
+        // Check if orchestrator says we're done
+        done = response.done !== false;
+
+        // If not done, wait briefly for page to settle after actions
+        if (!done) {
+          await new Promise((r) => setTimeout(r, 800));
+        }
       }
 
-      // Play TTS for the response
-      playTTS(response.message);
+      // Final status
+      if (done) {
+        updateStatus(shadow, `✓ Done — ${previousActions.length} total action(s) in ${iteration} iteration(s)`);
+      } else {
+        updateStatus(shadow, `⚠️ Stopped after ${MAX_ITERATIONS} iterations (${previousActions.length} actions executed)`);
+      }
 
     } catch (err) {
       showResponse(shadow, `⚠️ Error: ${err.message}`, 'error');
