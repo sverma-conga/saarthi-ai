@@ -11,7 +11,7 @@ import logging
 from typing import Optional
 
 from langchain_community.retrievers import BM25Retriever
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from .retriever import get_vectorstore
 
