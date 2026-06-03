@@ -24,7 +24,7 @@ Your job is to map a single business-level step to a concrete UI action using th
 {
   "action": {
     "type": "click",
-    "selector": "[data-testid='filter-btn']",
+    "selector": "el-3",
     "description": "Open filter panel"
   },
   "confidence": 0.0 to 1.0,
@@ -32,3 +32,5 @@ Your job is to map a single business-level step to a concrete UI action using th
   "message": "Short message to the user about what's happening"
 }
 ```
+
+IMPORTANT: For the "selector" field, prefer using the element's `id` field (e.g., "el-0", "el-3") from the interactive elements list. This is the most reliable way to target elements. If no matching element exists, fall back to a CSS selector or return a wait action.

@@ -18,26 +18,78 @@ const DomAnalyzer = (() => {
 
   const MAX_ELEMENTS = 50;
 
+  // Element registry: stores direct references to discovered elements
+  // so we can find them later even if they're in shadow DOMs
+  let _elementRegistry = new Map();
+
+  /**
+   * Get an element by its registry ID (for action execution)
+   */
+  function getElementById(id) {
+    return _elementRegistry.get(id) || null;
+  }
+
   /**
    * Analyze the DOM and return a snapshot of interactive elements
    * matching the contract schema.
    */
   function analyzeDom() {
-    const elements = document.querySelectorAll(INTERACTIVE_SELECTORS);
+    // Collect elements from main document, shadow DOMs, AND same-origin iframes
+    let allElements = [];
 
-    return Array.from(elements)
+    // Recursive function to find elements including inside shadow DOMs
+    function collectFromRoot(root) {
+      const found = root.querySelectorAll(INTERACTIVE_SELECTORS);
+      allElements = allElements.concat(Array.from(found));
+
+      // Traverse shadow roots of ALL elements in this root
+      const allEls = root.querySelectorAll('*');
+      for (const el of allEls) {
+        if (el.shadowRoot) {
+          collectFromRoot(el.shadowRoot);
+        }
+      }
+    }
+
+    // 1. Main document (including shadow DOMs)
+    collectFromRoot(document);
+
+    // 2. Same-origin iframes
+    try {
+      const iframes = document.querySelectorAll('iframe');
+      for (let idx = 0; idx < iframes.length; idx++) {
+        try {
+          const iframeDoc = iframes[idx].contentDocument || iframes[idx].contentWindow?.document;
+          if (iframeDoc) {
+            collectFromRoot(iframeDoc);
+          }
+        } catch (e) { /* cross-origin */ }
+      }
+    } catch (e) { /* iframe scan failed */ }
+
+    // Exclude our own panel elements
+    allElements = allElements.filter(el => !el.closest?.('#saarthi-root'));
+
+    const results = allElements
       .filter(isVisible)
       .sort(prioritizeElements)
-      .slice(0, MAX_ELEMENTS)
-      .map((el, i) => ({
-        id: `el-${i}`,
+      .slice(0, MAX_ELEMENTS);
+
+    // Clear and rebuild element registry
+    _elementRegistry.clear();
+    return results.map((el, i) => {
+      const id = `el-${i}`;
+      _elementRegistry.set(id, el);
+      return {
+        id,
         tag: el.tagName.toLowerCase(),
         text: getElementText(el),
         selector: getUniqueSelector(el),
         aria_label: el.getAttribute('aria-label') || null,
         placeholder: el.getAttribute('placeholder') || null,
         visible: true,
-      }));
+      };
+    });
   }
 
   /**
@@ -73,11 +125,17 @@ const DomAnalyzer = (() => {
    * Check if an element is visible in the viewport.
    */
   function isVisible(el) {
-    if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') {
-      return false;
+    // For iframe elements, getComputedStyle/offsetParent are still valid within their document
+    try {
+      if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') {
+        return false;
+      }
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    } catch (e) {
+      // If visibility check fails (e.g. detached element), assume visible
+      return true;
     }
-    const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
   }
 
   /**
@@ -158,5 +216,5 @@ const DomAnalyzer = (() => {
     return parts.join(' > ');
   }
 
-  return { analyzeDom, getVisibleTextSummary };
+  return { analyzeDom, getVisibleTextSummary, getElementById };
 })();

@@ -107,30 +107,87 @@ const ActionExecutor = (() => {
 
   /**
    * Find an element using a selector string.
-   * Supports comma-separated fallback selectors.
-   * Falls back to text-based search if selector fails.
+   * Searches: 1) DomAnalyzer registry, 2) main document, 3) iframes, 4) shadow DOMs, 5) text fallback.
    */
   function findElement(selector) {
     if (!selector) throw new Error('No selector provided');
 
-    // Try each comma-separated selector
+    // 1. Try DomAnalyzer element registry (works for shadow DOM elements)
+    if (selector.startsWith('el-')) {
+      const regEl = DomAnalyzer.getElementById(selector);
+      if (regEl) return regEl;
+    }
+
+    // 2. Try CSS selector in main document
     const selectors = selector.split(',').map((s) => s.trim());
     for (const sel of selectors) {
       try {
         const el = document.querySelector(sel);
         if (el) return el;
-      } catch (e) {
-        // Invalid selector, try next
-      }
+      } catch (e) { /* invalid selector */ }
     }
 
-    // Fallback: try to find by visible text content
+    // 3. Try inside iframes (same-origin)
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of iframes) {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          for (const sel of selectors) {
+            try {
+              const el = iframeDoc.querySelector(sel);
+              if (el) return el;
+            } catch (e) { /* skip */ }
+          }
+        }
+      } catch (e) { /* cross-origin */ }
+    }
+
+    // 4. Deep search shadow DOMs
+    function searchShadow(root) {
+      for (const sel of selectors) {
+        try {
+          const el = root.querySelector(sel);
+          if (el) return el;
+        } catch (e) { /* skip */ }
+      }
+      const children = root.querySelectorAll('*');
+      for (const child of children) {
+        if (child.shadowRoot) {
+          const found = searchShadow(child.shadowRoot);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    const shadowResult = searchShadow(document);
+    if (shadowResult) return shadowResult;
+
+    // 5. Text-based fallback (main doc + iframes + shadow DOMs)
     const textHint = selector.replace(/[#.\[\]='"]/g, ' ').trim();
     if (textHint.length > 2) {
-      const allClickable = document.querySelectorAll('button, a, [role="button"], input[type="submit"]');
+      const clickableSelector = 'button, a, [role="button"], input[type="submit"]';
+
+      // Collect all clickable from everywhere
+      const allClickable = [];
+      function collectClickable(root) {
+        allClickable.push(...root.querySelectorAll(clickableSelector));
+        const els = root.querySelectorAll('*');
+        for (const el of els) {
+          if (el.shadowRoot) collectClickable(el.shadowRoot);
+        }
+      }
+      collectClickable(document);
+      for (const iframe of iframes) {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc) collectClickable(iframeDoc);
+        } catch (e) { /* skip */ }
+      }
+
       for (const el of allClickable) {
         const elText = (el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
-        if (elText.includes(textHint.toLowerCase()) || textHint.toLowerCase().includes(elText)) {
+        if (elText && (elText.includes(textHint.toLowerCase()) || textHint.toLowerCase().includes(elText))) {
           return el;
         }
       }
