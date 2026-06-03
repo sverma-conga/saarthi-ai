@@ -1,205 +1,254 @@
-# SAARTHI AI — Test & Demo Instructions
+# SAARTHI AI — Demo & Test Instructions
 
-> Complete walkthrough to demonstrate every functional capability of the extension.
+> Complete guide to demonstrate SAARTHI AI on Conga CLM with all three components live.
 
 ---
 
 ## Prerequisites
 
-| Requirement | Check |
-|------------|-------|
+| Requirement | How to Verify |
+|------------|---------------|
 | Chrome browser | Any recent version |
 | Python 3.12+ | `python --version` |
 | ffmpeg on PATH | `ffmpeg -version` |
-| Extension loaded | `chrome://extensions` → Developer Mode → Load unpacked → `extension/` folder |
+| GitHub PAT in `.env` | `orchestrator/.env` has `OPENAI_API_KEY=ghp_...` |
+| Conga CLM access | Login to https://app.congaclm.com (or demo environment) |
 
 ---
 
-## Step 1: Start the Python Speech Server
+## Setup (One-Time)
 
-# Start the FastAPI server
+### 1. Install Dependencies
+
+```powershell
+cd backend/Speech-Module
+pip install -r requirements.txt
+
+cd ../../orchestrator
+pip install -r requirements.txt
+pip install playwright
+python -m playwright install chromium
+```
+
+### 2. Configure Environment
+
+```powershell
+cd orchestrator
+# Create .env with:
+#   OPENAI_API_KEY=ghp_your_github_pat
+#   OPENAI_BASE_URL=https://models.inference.ai.azure.com
+#   OPENAI_MODEL=gpt-4o
+```
+
+### 3. Ingest Knowledge Base (if not done)
+
+```powershell
+cd orchestrator
+python -m rag.ingest_playwright
+# Crawls 50 Conga CLM documentation pages → 134 chunks in ChromaDB
+```
+
+### 4. Load Extension
+
+1. Open `chrome://extensions` → enable **Developer Mode**
+2. Click **"Load unpacked"** → select the `extension/` folder
+3. Verify "SAARTHI AI" appears with no errors
+
+---
+
+## Start All Services
+
+Open two separate terminals:
+
+```powershell
+# Terminal 1: Speech Server
+cd backend/Speech-Module
 python -m uvicorn main:app --port 8000
 ```
 
-### Verify it's running
+```powershell
+# Terminal 2: Orchestrator
+cd orchestrator
+python -m uvicorn server:app --port 8001
+```
 
-Open in browser: **http://localhost:8000/docs**  
-You should see the FastAPI Swagger UI with `/speech-to-text` and `/text-to-speech` endpoints.
-
----
-
-## Step 2: Load / Reload the Extension
-
-1. Open `chrome://extensions`
-2. Enable **Developer Mode** (top-right toggle)
-3. If already loaded: click the **🔄 refresh icon** on the SAARTHI AI card
-4. If first time: click **"Load unpacked"** → navigate to `extension/` folder → Select Folder
-5. Confirm: you should see "SAARTHI AI" with no errors
-
----
-
-## Step 3: Open the Test Page
-
-Navigate to **https://www.google.com** (clean Google homepage).
-
----
-
-## Demo Scenarios
-
-### Demo 1: Panel Open & Close (Hotkey)
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Press `Alt+Shift+S` | SAARTHI AI panel appears (bottom-right) |
-| 2 | Observe panel | Shows: title, mode toggle (Action/Guide), response area, mic button, text input |
-| 3 | Press `Alt+Shift+S` again | Panel disappears |
-| 4 | Press `Alt+Shift+S` once more | Panel reappears (toggle behavior) |
-
----
-
-### Demo 2: Action Mode — Search with Auto-Submit
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Open panel (`Alt+Shift+S`) on google.com | Panel visible, Action mode active (⚡ highlighted) |
-| 2 | Type in text input: `search for saarthi ai` | Text appears in input box |
-| 3 | Press Enter | Processing starts... |
-| 4 | Watch the page | Extension clicks search box → types "saarthi ai" → submits form |
-| 5 | Observe status | Shows: `✓ Done — 3 total action(s) in 1 iteration(s)` |
-| 6 | Observe page | Google search results for "saarthi ai" are displayed |
-| 7 | Listen | TTS speaks: "I'll search for saarthi ai" |
-
-**What this proves:** Text input → DOM analysis → action execution (click + type + submit) → TTS response.
-
----
-
-### Demo 3: Action Mode — Click a Specific Element
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | On Google search results page, open panel | Panel visible |
-| 2 | Type: `click Images` | Processing... |
-| 3 | Watch | Extension finds "Images" link → highlights it blue → clicks it |
-| 4 | Observe | Page navigates to Google Images tab |
-| 5 | Status | `✓ Done — 1 total action(s) in 1 iteration(s)` |
-
-**What this proves:** Natural language → finds matching element by text → clicks it.
-
----
-
-### Demo 4: Action Mode — Scroll
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Navigate to any long page (e.g., Wikipedia article) | Page loaded |
-| 2 | Open panel, type: `scroll down` | Processing... |
-| 3 | Watch | Page smoothly scrolls down ~400px |
-| 4 | Type: `scroll up` | Page scrolls back up |
-
-**What this proves:** Scroll action works without needing a selector.
-
----
-
-### Demo 5: Guide Mode — Step-by-Step Highlights
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Navigate back to **google.com** | Clean homepage |
-| 2 | Open panel (`Alt+Shift+S`) | Panel visible |
-| 3 | Click **📖 Guide** button | Guide mode activated (button highlighted) |
-| 4 | Type: `how do I use this page?` | Processing... |
-| 5 | Observe page | Pulsing blue border appears on the search box |
-| 6 | Observe tooltip | Tooltip shows: "Use the search box to find what you need" with Prev/Next/Done buttons |
-| 7 | Click **Next** in tooltip | Highlight moves to next element (a link) with new instruction |
-| 8 | Click **Next** again | Highlights next element (a button) |
-| 9 | Click **Done** | All highlights disappear |
-
-**What this proves:** Guide mode highlights real elements, shows instructions, step navigation works.
-
----
-
-### Demo 6: Guide Mode Respects Mode Toggle (No Actions Executed)
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Stay in **📖 Guide** mode on google.com | Guide tab selected |
-| 2 | Type: `search for hello world` | Processing... |
-| 3 | Observe | Highlights appear on search box — does NOT type anything |
-| 4 | Confirm | No text was auto-typed, no navigation happened |
-| 5 | Switch to **⚡ Action** mode | Action tab now selected |
-| 6 | Type: `search for hello world` | Now it actually types and submits |
-
-**What this proves:** Mode toggle correctly gates behavior — Guide only shows, Action only executes.
-
----
-
-### Demo 7: Voice Input (Full Voice Pipeline)
-
-> **Requires:** microphone access + Speech server running on port 8000
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Navigate to **google.com**, open panel | Panel visible, Action mode |
-| 2 | Click the **🎤 mic button** | Browser asks for mic permission (first time) → Grant it |
-| 3 | Status shows | "🎤 Recording... click mic again to stop" |
-| 4 | Speak clearly: **"search for artificial intelligence"** | Mic is recording |
-| 5 | Click **🎤 again** to stop recording | Status: "Processing audio..." |
-| 6 | Wait 2-3 seconds | Transcript appears: "search for artificial intelligence" |
-| 7 | Watch page | Extension types "artificial intelligence" in Google → submits |
-| 8 | Listen | TTS plays back the AI response |
-
-**What this proves:** Voice → STT (Rohit's server) → intent processing → action execution → TTS response. Full pipeline.
-
----
-
-### Demo 8: TTS (Text-to-Speech) Response
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Open panel on any page, Action mode | Ready |
-| 2 | Type: `hello` | Processing... |
-| 3 | Listen to speakers/headphones | AI speaks the response message aloud |
-| 4 | Check panel response area | Shows the AI's text response |
-
-**What this proves:** Every response triggers TTS audio playback via Rohit's `/text-to-speech` endpoint.
-
----
-
-### Demo 9: Error Handling (Element Not Found)
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | Open panel on google.com, Action mode | Ready |
-| 2 | Type: `click the download button` | Processing... |
-| 3 | Observe status | May show `⚠️ Failed at step 1: Element not found: ...` OR clicks first button |
-| 4 | Panel still works | Extension doesn't crash, ready for next command |
-
-**What this proves:** Graceful error handling when elements can't be found.
-
----
-
-### Demo 10: Multi-Turn Loop (done=false)
-
-> **Note:** The mock returns `done: true` for most commands. This is best demonstrated with the real orchestrator. To simulate:
-
-| Step | Action | Expected Result |
-|------|--------|----------------|
-| 1 | On Google results page, Action mode | Ready |
-| 2 | Type: `filter results` | Processing... |
-| 3 | If a filter/sort button exists | Extension clicks it, status may show "🔄 Iteration 2/10..." |
-| 4 | Observe | Loop continues until `done: true` or max 10 iterations |
-
-**What this proves:** Extension loops: execute → re-scan DOM → ask orchestrator again → repeat.
-
----
-
-## Stopping the Server
+### Quick Health Check
 
 ```powershell
-# Press Ctrl+C in the terminal running uvicorn
-# OR force kill:
-Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+# Both should return 200:
+curl http://localhost:8000/text-to-speech?text=hello -o test.mp3
+curl http://localhost:8001/health
 ```
+
+---
+
+## Demo Flow (Recommended Order)
+
+> **Tip**: Start with Knowledge mode (always works), then Guide mode (visual), then Action mode (impressive), then Voice (wow factor).
+
+---
+
+### Demo 1: Knowledge Mode — "What is Contract AI?"
+
+**Setup**: Navigate to any Conga CLM page. Open panel with `Alt+Shift+S`.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Press `Alt+Shift+S` | Panel appears bottom-right |
+| 2 | Ensure **⚡ Action** mode is selected | Mode toggle visible |
+| 3 | Type: `What is Contract AI in Conga CLM?` | Processing... |
+| 4 | Wait 3-5 sec | AI responds with information from RAG |
+| 5 | Listen | TTS speaks the answer |
+
+**What this proves**: Natural language → Intent classified as KNOWLEDGE → RAG retrieves from 50 ingested Conga doc pages → GPT-4o synthesizes answer → TTS plays response.
+
+**Expected response** (from RAG): Mentions AI-powered capabilities, Aime Assistant, Search Agent, contract analysis.
+
+---
+
+### Demo 2: Knowledge Mode — "How do I create a contract?"
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Type: `How do I create a new contract?` | Processing... |
+| 2 | Wait | AI provides step-by-step instructions from documentation |
+| 3 | Listen | TTS speaks the answer |
+
+**Expected**: Mentions "Create New Contract", Fill out form, Import documents, Store Executed Contract, Contract Type selection — all from real Conga documentation.
+
+---
+
+### Demo 3: Guide Mode — Step-by-Step Highlights
+
+**Setup**: Navigate to the Conga CLM Contracts list page.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Click **📖 Guide** mode button | Guide tab highlighted |
+| 2 | Type: `How do I filter contracts?` | Processing... |
+| 3 | Watch the page | Pulsing blue highlights appear on relevant UI elements |
+| 4 | Read tooltip | Step-by-step instructions with "Next" / "Prev" / "Done" |
+| 5 | Click **Next** | Highlight moves to next element |
+| 6 | Click **Done** | Highlights disappear |
+
+**What this proves**: Guide mode analyzes real DOM → GPT-4o identifies relevant elements → highlights them with instructions. No actions executed — purely visual guidance.
+
+---
+
+### Demo 4: Action Mode — Click "Create New Contract"
+
+**Setup**: Navigate to Conga CLM Contracts page. Switch to **⚡ Action** mode.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Type: `Click Create New Contract` | Processing... |
+| 2 | Watch status | "⚡ Executing actions (iteration 1)..." |
+| 3 | Watch page | Extension finds the button → highlights blue → clicks it |
+| 4 | Observe result | Contract creation dialog/page opens |
+| 5 | Check status | "✓ Done — 1 total action(s) in 1 iteration(s)" |
+
+**What this proves**: Intent → Executor maps natural language to real DOM element → executes click.
+
+---
+
+### Demo 5: Action Mode — Multi-Step Task
+
+**Setup**: On Conga CLM Contracts list page.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Type: `Show me today's contracts` | Processing... |
+| 2 | Watch status | "⚡ Executing actions (iteration 1)..." |
+| 3 | Watch page | Extension clicks filter/search |
+| 4 | Status updates | "🔄 Iteration 2/10..." — re-scans DOM |
+| 5 | Watch | Extension enters date or applies filter |
+| 6 | Final status | "✓ Done — N total action(s) in M iteration(s)" |
+
+**What this proves**: Full agentic loop — Plan (3-4 steps) → Execute step 1 → Re-observe DOM → Execute step 2 → ... → Done. The `task_state` persists across iterations.
+
+---
+
+### Demo 6: Action Mode — Search
+
+**Setup**: Any Conga CLM page with a search bar.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Type: `Search for NDA agreements` | Processing... |
+| 2 | Watch | Extension clicks search box → types "NDA" → submits |
+| 3 | Observe | Search results appear |
+
+---
+
+### Demo 7: Voice Input — Full Pipeline
+
+**Setup**: Any Conga CLM page. Mic available. Panel open in Action mode.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Click **🎤** mic button | "🎤 Recording... click mic again to stop" |
+| 2 | Speak clearly: **"How do I approve a contract?"** | Recording |
+| 3 | Click **🎤** again to stop | "Processing audio..." |
+| 4 | Wait 2-3 sec | Transcript appears: "how do I approve a contract" |
+| 5 | Watch response | AI answers with steps from Conga documentation |
+| 6 | Listen | TTS speaks the response |
+
+**What this proves**: Voice → Rohit's STT → transcript → Orchestrator (RAG + GPT-4o) → answer → Rohit's TTS → audio. Full end-to-end voice pipeline.
+
+---
+
+### Demo 8: Voice + Action Execution
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Click **🎤**, speak: **"Click on Accounts"** | Recording → stop |
+| 2 | Watch | Transcript: "click on accounts" → Extension finds Accounts nav → clicks |
+| 3 | Observe | Navigates to Accounts section |
+
+**What this proves**: Voice command → real UI action. No typing needed.
+
+---
+
+### Demo 9: Error Recovery
+
+**Setup**: On a page where the requested element doesn't exist.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Type: `Click the export PDF button` | Processing... |
+| 2 | Watch | Orchestrator's recovery agent activates |
+| 3 | Observe | May scroll to find it, try alternatives, or report "not found" |
+| 4 | Panel still works | Ready for next command |
+
+**What this proves**: Graceful failure handling with auto-recovery (up to 3 retries).
+
+---
+
+### Demo 10: Mode Toggle Safety
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Switch to **📖 Guide** mode | Guide tab active |
+| 2 | Type: `Click Create New Contract` | Processing... |
+| 3 | Observe | Highlights the button but does NOT click it |
+| 4 | Switch to **⚡ Action** mode | Action tab active |
+| 5 | Type same command | Now it actually clicks the button |
+
+**What this proves**: Guide mode is safe/read-only. Action mode executes.
+
+---
+
+## Fallback Behavior
+
+If either server is down:
+
+| Server Down | Behavior |
+|-------------|----------|
+| Orchestrator (8001) | Extension uses smart mock — still executes actions using DOM analysis |
+| Speech (8000) | Mic button fails gracefully; text input still works |
+| Both down | Text input + mock actions still function |
+
+The extension **never crashes**. Mock responses are DOM-aware (uses real selectors from the page).
 
 ---
 
@@ -207,33 +256,54 @@ Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Obj
 
 | Issue | Fix |
 |-------|-----|
-| Panel doesn't appear | Check `chrome://extensions` for errors; reload extension |
-| "Mic error" | Grant microphone permission; check `chrome://settings/content/microphone` |
-| STT returns empty/error | Ensure server is running (`http://localhost:8000/docs`) |
-| No TTS audio | Check volume; ensure server is running; check browser autoplay policy |
-| "Element not found" | Normal — mock uses best-guess selectors; real orchestrator will be precise |
-| Extension disappears on page nav | Re-press `Alt+Shift+S` — content script reloads on navigation |
-| Hotkey doesn't work | Check `chrome://extensions/shortcuts` → verify Alt+Shift+S is assigned |
+| Panel doesn't appear | `chrome://extensions` → check for errors → reload extension |
+| "Mic error" | Grant permission at `chrome://settings/content/microphone` |
+| Orchestrator 500 error | Check `.env` exists in `orchestrator/` with valid `OPENAI_API_KEY` |
+| TTS silent | Check volume; check browser autoplay policy (interact with page first) |
+| Slow response | GitHub Models rate limit — wait 10 sec and retry |
+| "Element not found" | Element may be off-screen or behind a modal; try scrolling first |
+| Hotkey doesn't work | `chrome://extensions/shortcuts` → verify Alt+Shift+S is assigned |
+| RAG returns generic answers | Run `python -m rag.ingest_playwright` to rebuild vector store |
 
 ---
 
-## Summary of Capabilities Demonstrated
+## Architecture Summary for Judges
 
-| # | Capability | Component | Demo |
-|---|-----------|-----------|------|
-| 1 | Hotkey activation | `manifest.json` + `service-worker.js` | Demo 1 |
-| 2 | Shadow DOM panel | `content.js` | Demo 1 |
-| 3 | Text input processing | `content.js` | Demo 2 |
-| 4 | DOM analysis (50 elements) | `dom-analyzer.js` | Demo 2-6 |
-| 5 | Action: click | `action-executor.js` | Demo 3 |
-| 6 | Action: type + submit | `action-executor.js` | Demo 2 |
-| 7 | Action: scroll | `action-executor.js` | Demo 4 |
-| 8 | Guide mode highlights | `overlay.js` | Demo 5 |
-| 9 | Mode toggle (Guide vs Action) | `content.js` + `api-client.js` | Demo 6 |
-| 10 | Voice recording (MediaRecorder) | `content.js` | Demo 7 |
-| 11 | Speech-to-Text (Rohit's server) | `api-client.js` → `/speech-to-text` | Demo 7 |
-| 12 | Text-to-Speech playback | `api-client.js` → `/text-to-speech` | Demo 8 |
-| 13 | CORS bypass via service worker | `service-worker.js` | All demos |
-| 14 | Error handling | `content.js` + `action-executor.js` | Demo 9 |
-| 15 | Multi-turn loop | `content.js` (iteration loop) | Demo 10 |
-| 16 | Mock orchestrator (real selectors) | `api-client.js` | All demos |
+```
+┌─── Chrome Extension ──────────────────────────────────────┐
+│  Alt+Shift+S → Shadow DOM Panel                           │
+│  Voice (MediaRecorder) ←→ Speech Server (port 8000)       │
+│  DOM Analyzer → 50 interactive elements with selectors    │
+│  Action Executor → click/type/scroll/navigate/submit      │
+│  Agentic Loop → max 10 iterations until done              │
+└───────────────────────────┬───────────────────────────────┘
+                            │ HTTP (via service worker CORS proxy)
+┌───────────────────────────▼───────────────────────────────┐
+│  Orchestrator (port 8001) — GPT-4o via GitHub Models      │
+│                                                           │
+│  Intent Classifier → Planner → Executor → Recovery        │
+│       ↕                  ↕                                │
+│  RAG Engine          Session Store                        │
+│  134 chunks from     (task_state persists                 │
+│  Conga CLM docs       across iterations)                  │
+└───────────────────────────────────────────────────────────┘
+
+Key: No OpenAI API key needed — uses free GitHub Models (GPT-4o).
+     No paid speech APIs — uses free Google STT + gTTS.
+```
+
+---
+
+## Demo Tips
+
+1. **Pre-login** to Conga CLM before demo starts
+2. **Pre-open** the panel once to warm up (first load takes a moment)
+3. **Start with Knowledge** mode — always works, impresses with RAG
+4. **Guide mode next** — visual and safe, shows DOM intelligence
+5. **Action mode** — the wow moment, AI clicking buttons
+6. **Voice last** — full pipeline, biggest impact
+7. If live demo fails → explain architecture with the diagram above
+
+---
+
+*Last updated: June 3, 2026*
