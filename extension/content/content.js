@@ -159,6 +159,7 @@
     const sessionId = crypto.randomUUID();
     let previousActions = [];
     let lastError = null;
+    let taskState = null;
     let iteration = 0;
     let done = false;
 
@@ -178,6 +179,7 @@
           },
           previous_actions: previousActions,
           error_from_last_action: lastError,
+          task_state: taskState,
         };
 
         updateStatus(shadow, iteration > 1
@@ -185,6 +187,11 @@
           : `Sending to AI [${mode} mode]...`);
 
         const response = await ApiClient.processIntent(request);
+
+        // Persist task_state for next iteration (orchestrator round-trip)
+        if (response.task_state) {
+          taskState = response.task_state;
+        }
 
         // Display AI message
         showResponse(shadow,
@@ -196,13 +203,20 @@
         // Play TTS for the response
         playTTS(response.message);
 
-        // Execute actions or show guide based on response mode
-        if (response.actions && response.actions.length > 0) {
+        // Normalize actions: support both `actions` (batch) and `next_action` (single)
+        const actions = response.actions && response.actions.length > 0
+          ? response.actions
+          : response.next_action
+            ? [response.next_action]
+            : null;
+
+        // Execute actions, show guide, or handle knowledge response
+        if (actions && actions.length > 0) {
           updateStatus(shadow, `⚡ Executing actions (iteration ${iteration})...`);
-          const result = await ActionExecutor.executeActions(response.actions);
+          const result = await ActionExecutor.executeActions(actions);
 
           // Track executed actions for next iteration
-          previousActions = previousActions.concat(response.actions.map((a, i) => ({
+          previousActions = previousActions.concat(actions.map((a, i) => ({
             ...a,
             executed: i < result.steps_completed,
           })));
@@ -215,6 +229,10 @@
         } else if (response.guide_steps && response.guide_steps.length > 0) {
           updateStatus(shadow, `📖 Guide: ${response.guide_steps.length} steps`);
           GuideOverlay.showGuide(response.guide_steps);
+          done = true;
+          break;
+        } else if (response.mode === 'knowledge') {
+          // Knowledge mode: just display the answer, no actions needed
           done = true;
           break;
         }
