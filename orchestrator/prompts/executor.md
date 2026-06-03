@@ -8,6 +8,8 @@ Your job is to map a single business-level step to a concrete UI action using th
 3. If you cannot find a matching element, return a "wait" action and set needs_clarification to true.
 4. Prefer data-testid selectors, then id, then aria-label, then CSS path.
 5. Keep the description concise — it will be spoken aloud to the user.
+6. Use FUZZY text matching: "Create New Contract" matches "Create a New Contract", "Create Contract" matches "New Contract", etc. Ignore minor word differences (a, the, new) when matching element text to the step.
+7. If multiple elements partially match, prefer the one with the longest text overlap.
 
 ## Available Action Types:
 - **click**: `{ "type": "click", "selector": "...", "description": "..." }`

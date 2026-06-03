@@ -53,8 +53,13 @@ async def process_request(
 
     # --- If we have a plan in progress and no error, advance to next step ---
     if session.pending_steps and not request.error_from_last_action:
-        # Previous action succeeded — mark step complete
-        if session.completed_steps or request.previous_actions:
+        # Only mark step complete if the previous action was a real action (not a wait)
+        prev_was_real_action = False
+        if request.previous_actions:
+            last_action = request.previous_actions[-1] if request.previous_actions else {}
+            prev_was_real_action = last_action.get("type") not in ("wait", None)
+
+        if prev_was_real_action or session.completed_steps:
             session.complete_current_step()
 
         if session.is_task_complete():

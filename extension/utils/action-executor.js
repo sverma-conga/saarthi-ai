@@ -108,6 +108,7 @@ const ActionExecutor = (() => {
   /**
    * Find an element using a selector string.
    * Supports comma-separated fallback selectors.
+   * Falls back to text-based search if selector fails.
    */
   function findElement(selector) {
     if (!selector) throw new Error('No selector provided');
@@ -120,6 +121,18 @@ const ActionExecutor = (() => {
         if (el) return el;
       } catch (e) {
         // Invalid selector, try next
+      }
+    }
+
+    // Fallback: try to find by visible text content
+    const textHint = selector.replace(/[#.\[\]='"]/g, ' ').trim();
+    if (textHint.length > 2) {
+      const allClickable = document.querySelectorAll('button, a, [role="button"], input[type="submit"]');
+      for (const el of allClickable) {
+        const elText = (el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
+        if (elText.includes(textHint.toLowerCase()) || textHint.toLowerCase().includes(elText)) {
+          return el;
+        }
       }
     }
 

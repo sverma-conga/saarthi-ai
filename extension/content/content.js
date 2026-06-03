@@ -6,6 +6,7 @@
 
   let panelVisible = false;
   let container = null;
+  let currentAudio = null; // Track current TTS audio for stop functionality
 
   // Listen for toggle message from background service worker
   chrome.runtime.onMessage.addListener((msg) => {
@@ -48,6 +49,7 @@
         <div class="input-area">
           <button class="mic-btn" title="Start voice input">🎤</button>
           <input type="text" class="text-input" placeholder="Type a command..." />
+          <button class="stop-tts-btn" title="Stop speaking" style="display:none;">⏹</button>
           <button class="send-btn" title="Send">➤</button>
         </div>
 
@@ -98,6 +100,11 @@
       if (e.key === 'Enter') {
         shadow.querySelector('.send-btn').click();
       }
+    });
+
+    // Stop TTS button
+    shadow.querySelector('.stop-tts-btn').addEventListener('click', () => {
+      stopCurrentAudio(shadow);
     });
 
     // Mic button — MediaRecorder voice capture
@@ -200,9 +207,6 @@
           'html'
         );
 
-        // Play TTS for the response
-        playTTS(response.message);
-
         // Normalize actions: support both `actions` (batch) and `next_action` (single)
         const actions = response.actions && response.actions.length > 0
           ? response.actions
@@ -246,11 +250,17 @@
         }
       }
 
-      // Final status
+      // Final status & TTS — only speak the FINAL response
       if (done) {
         updateStatus(shadow, `✓ Done — ${previousActions.length} total action(s) in ${iteration} iteration(s)`);
       } else {
         updateStatus(shadow, `⚠️ Stopped after ${MAX_ITERATIONS} iterations (${previousActions.length} actions executed)`);
+      }
+
+      // Play TTS only once at the end (get the last displayed message)
+      const lastAiMsg = shadow.querySelector('.response-area .ai-message');
+      if (lastAiMsg) {
+        playTTS(shadow, lastAiMsg.textContent);
       }
 
     } catch (err) {
@@ -259,17 +269,39 @@
     }
   }
 
-  async function playTTS(text) {
+  async function playTTS(shadow, text) {
     try {
+      // Stop any currently playing audio first
+      stopCurrentAudio(shadow);
+
       const audioBlob = await ApiClient.textToSpeech(text);
       const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.play();
-      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      currentAudio = new Audio(audioUrl);
+
+      // Show stop button while speaking
+      const stopBtn = shadow.querySelector('.stop-tts-btn');
+      if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+      currentAudio.play();
+      currentAudio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudio = null;
+        if (stopBtn) stopBtn.style.display = 'none';
+      };
     } catch (err) {
       // TTS is non-critical — silently fail
       console.warn('SAARTHI TTS failed:', err.message);
     }
+  }
+
+  function stopCurrentAudio(shadow) {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
+    const stopBtn = shadow.querySelector('.stop-tts-btn');
+    if (stopBtn) stopBtn.style.display = 'none';
   }
 
   function showResponse(shadow, content, type) {
@@ -473,6 +505,26 @@
 
       .send-btn:hover {
         background: #b4d0fb;
+      }
+
+      .stop-tts-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f38ba8;
+        color: #1e1e2e;
+        transition: all 0.15s;
+        animation: pulse 0.8s infinite;
+      }
+
+      .stop-tts-btn:hover {
+        background: #eb6f92;
       }
 
       .text-input {

@@ -27,6 +27,7 @@ const DomAnalyzer = (() => {
 
     return Array.from(elements)
       .filter(isVisible)
+      .sort(prioritizeElements)
       .slice(0, MAX_ELEMENTS)
       .map((el, i) => ({
         id: `el-${i}`,
@@ -37,6 +38,28 @@ const DomAnalyzer = (() => {
         placeholder: el.getAttribute('placeholder') || null,
         visible: true,
       }));
+  }
+
+  /**
+   * Sort elements by priority: buttons/nav first, then inputs, then links.
+   * Avoids table data links crowding out actionable elements.
+   */
+  function prioritizeElements(a, b) {
+    return getElementPriority(a) - getElementPriority(b);
+  }
+
+  function getElementPriority(el) {
+    const tag = el.tagName.toLowerCase();
+    // Buttons and role=button are highest priority
+    if (tag === 'button' || el.getAttribute('role') === 'button') return 1;
+    // Input/select/textarea for forms
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return 2;
+    // Nav links (in nav, header, or sidebar)
+    if (tag === 'a' && el.closest('nav, header, [role="navigation"], aside')) return 3;
+    // Regular links
+    if (tag === 'a') return 5;
+    // Everything else
+    return 4;
   }
 
   /**
