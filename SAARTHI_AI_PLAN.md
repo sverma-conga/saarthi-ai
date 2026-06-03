@@ -10,7 +10,7 @@
 |-----------|-----|-----------------|--------|
 | **Shivam** | VS Code | Chrome Extension (UI + DOM + Action Executor) | ✅ Complete |
 | **Rohit** | PyCharm | Python Backend (FastAPI server + Voice/TTS) | ✅ Complete |
-| **Gautam** | PyCharm/VS Code | LLM Orchestrator + RAG Knowledge Engine | 🟡 Pending |
+| **Gautam** | PyCharm/VS Code | LLM Orchestrator + RAG Knowledge Engine | ✅ Complete |
 
 ---
 
@@ -58,20 +58,38 @@ saarthi-ai/
 │   ├── api/
 │   └── voice/
 │
-├── orchestrator/                    ← 🟡 GAUTAM — PENDING
+├── orchestrator/                    ← 🟡 GAUTAM ✅ COMPLETE
 │   ├── __init__.py
-│   ├── agent.py                    ← Main orchestration logic (LLM calls)
-│   ├── prompts/
-│   │   ├── system_prompt.md
-│   │   ├── action_mode.md
-│   │   └── guide_mode.md
+│   ├── server.py                   ← FastAPI server (port 8001)
+│   ├── agent.py                    ← Main orchestration loop (observe→think→act)
+│   ├── config.py                   ← Settings (.env based)
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── agents/
+│   │   ├── intent_classifier.py    ← ACTION/GUIDE/KNOWLEDGE/NAVIGATION/UNKNOWN
+│   │   ├── planner.py              ← Business-level step planner
+│   │   ├── executor.py             ← Maps step → DOM action (single action)
+│   │   ├── recovery.py             ← Error recovery + retry strategies
+│   │   └── guide_agent.py          ← Step-by-step guide generation
+│   ├── memory/
+│   │   └── session_store.py        ← In-memory session state with TTL
 │   ├── rag/
-│   │   ├── ingest.py              ← Load KT docs → vector store
-│   │   ├── retriever.py           ← Query vector store for context
-│   │   └── vector_store/          ← ChromaDB persistence (gitignored)
+│   │   ├── ingest.py               ← Load docs + URLs + sitemaps → vector store
+│   │   ├── retriever.py            ← Vector similarity search
+│   │   ├── hybrid_search.py        ← BM25 + Vector with RRF fusion
+│   │   ├── sources.json            ← Configurable knowledge sources (URLs, files)
+│   │   └── vector_store/           ← ChromaDB persistence (gitignored)
+│   ├── schemas/
+│   │   ├── request.py              ← Pydantic request models
+│   │   └── response.py             ← Pydantic response models
+│   ├── prompts/
+│   │   ├── intent_classifier.md
+│   │   ├── planner.md
+│   │   ├── executor.md
+│   │   ├── recovery.md
+│   │   └── guide.md
 │   └── knowledge-base/
-│       ├── README.md
-│       └── docs/                  ← PDF, markdown, transcripts
+│       └── docs/                   ← PDF, markdown, transcripts
 │
 └── tests/
     └── mock_dom_snapshots/
@@ -285,286 +303,223 @@ POST /text-to-speech?text=...  → 200 OK (TTS for all response types)
 
 ---
 
-## 🟡 GAUTAM — LLM Orchestrator + RAG (PENDING)
+## 🟡 GAUTAM — Agentic Orchestrator + RAG Engine (✅ COMPLETE)
 
-### What You're Building
+### What Was Built
 
-The AI brain that:
-1. Receives user intent + DOM context from the extension
-2. Retrieves relevant KT docs via RAG
-3. Calls LLM with structured prompt
-4. Returns a JSON action plan or guide steps
+An **agentic AI orchestrator** that operates as an autonomous UI agent — not a chatbot. It follows the **Observe → Think → Act → Observe** loop, returning only the **next single action** per request cycle. This dramatically improves reliability in dynamic enterprise UIs.
 
-### How Your Code Integrates
+### Core Architecture
 
-The extension's `api-client.js` calls:
 ```
-POST http://localhost:8001/api/process
-Content-Type: application/json
-Body: { session_id, user_input, mode, context, previous_actions, error_from_last_action }
+User Request
+      ↓
+Intent Classifier (ACTION / GUIDE / KNOWLEDGE / NAVIGATION)
+      ↓
+┌─────────────────────────────────────┐
+│ Action Flow → Planner → Executor   │
+│ Guide Flow  → Guide Agent          │
+│ Knowledge Flow → RAG + LLM         │
+└─────────────────────────────────────┘
+      ↓
+Single Next Action (or guide/answer)
+      ↓
+Extension Executes
+      ↓
+Updated DOM sent back
+      ↓
+Observe Again → Continue Until Done
 ```
 
-**Your server must:**
-1. Listen on port **8001** (or update `ORCHESTRATOR_URL` in `extension/utils/api-client.js`)
-2. Accept POST `/api/process` with the request schema above
-3. Return JSON matching the response schema above
+### Agent Components
 
-When your server is running, the extension will automatically use it (falls back to mock if unavailable).
+| Agent | File | Purpose |
+|-------|------|---------|
+| **Intent Classifier** | `agents/intent_classifier.py` | Categorize user input: ACTION, GUIDE, KNOWLEDGE, NAVIGATION, UNKNOWN |
+| **Planner** | `agents/planner.py` | Break goal into business-level steps (no selectors) |
+| **Executor** | `agents/executor.py` | Map ONE business step → ONE DOM action with real selector |
+| **Recovery** | `agents/recovery.py` | Handle failures: alt selectors, scroll, retry, ask user (max 3 retries) |
+| **Guide Agent** | `agents/guide_agent.py` | Generate step-by-step instructions with highlight selectors |
+| **Session Memory** | `memory/session_store.py` | Track task state across multiple request/response cycles (TTL: 30 min) |
+
+### RAG Knowledge Engine
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Ingestion** | `rag/ingest.py` | Load local files + web URLs + sitemaps into ChromaDB |
+| **Retriever** | `rag/retriever.py` | Vector similarity search |
+| **Hybrid Search** | `rag/hybrid_search.py` | BM25 (keyword) + Vector (semantic) with Reciprocal Rank Fusion |
+| **Sources Config** | `rag/sources.json` | Configurable knowledge sources |
+
+#### Supported Knowledge Sources
+
+| Source Type | Description | Example |
+|-------------|-------------|---------|
+| `directory` | Local folder with PDF/MD/TXT files | `knowledge-base/docs/` |
+| `url` | Single web page (HTML scraped) | `https://docs.conga.com/clm/overview` |
+| `sitemap` | Crawl pages from sitemap XML | `https://docs.conga.com/sitemap.xml` |
+| `file` | Single local file | `knowledge-base/docs/guide.pdf` |
+
+#### Adding Knowledge Sources
+
+**Option 1 — Edit `rag/sources.json`:**
+```json
+{
+  "sources": [
+    {
+      "type": "directory",
+      "path": "knowledge-base/docs",
+      "enabled": true
+    },
+    {
+      "type": "url",
+      "url": "https://docs.conga.com/clm/latest/overview",
+      "description": "Conga CLM Overview",
+      "enabled": true
+    },
+    {
+      "type": "sitemap",
+      "url": "https://docs.conga.com/sitemap.xml",
+      "filter_pattern": "/clm/",
+      "max_pages": 50,
+      "enabled": true
+    }
+  ]
+}
+```
+
+**Option 2 — CLI:**
+```bash
+# Ingest a single URL
+python -m rag.ingest --url https://docs.conga.com/clm/overview
+
+# Ingest multiple URLs
+python -m rag.ingest --url https://url1.com --url https://url2.com
+
+# Ingest URLs from a file (one per line)
+python -m rag.ingest --urls my_urls.txt
+
+# Ingest everything (sources.json + CLI URLs)
+python -m rag.ingest --url https://extra-doc.com
+```
+
+**Option 3 — Local files:**
+Place PDF, Markdown, or TXT files in `orchestrator/knowledge-base/docs/` and run `python -m rag.ingest`.
+
+### Architecture Decisions
+
+| Decision | Choice | Reason |
+|----------|--------|--------|
+| Single action per response | Observe→Think→Act loop | Dynamic UIs change after each action — must re-observe |
+| Planner ≠ Executor | Separation of concerns | Planner thinks in business terms; Executor maps to DOM |
+| Recovery agent | Auto-retry with alternatives | Max 3 retries before asking user — improves demo reliability |
+| Hybrid RAG (BM25 + Vector) | RRF fusion | Catches both exact UI labels and semantic meaning |
+| Session state in `task_state` | Sent back to client | Survives page refreshes, enables multi-step workflows |
+| Intent classification first | Route to specialized flows | KNOWLEDGE queries skip DOM entirely — faster response |
+
+### Updated Response Contract
+
+**Action Mode (single next action):**
+```json
+{
+  "session_id": "uuid-string",
+  "message": "Opening filter panel. (step 1/3)",
+  "mode": "action",
+  "next_action": {
+    "type": "click",
+    "selector": "[data-testid='filter-btn']",
+    "description": "Open filter panel"
+  },
+  "done": false,
+  "task_state": {
+    "goal": "Show today's contracts",
+    "planned_steps": ["Open filter panel", "Enter today's date", "Apply filter"],
+    "completed_steps": [],
+    "pending_steps": ["Open filter panel", "Enter today's date", "Apply filter"],
+    "retry_count": 0
+  }
+}
+```
+
+**Guide Mode:**
+```json
+{
+  "session_id": "uuid-string",
+  "message": "Here's how to create a contract:",
+  "mode": "guide",
+  "guide_steps": [
+    {"step": 1, "instruction": "Click '+ New Agreement' in the top-right", "highlight_selector": "[data-testid='new-agreement-btn']"},
+    {"step": 2, "instruction": "Select the agreement type", "highlight_selector": "#agreement-type-select"}
+  ],
+  "done": true
+}
+```
+
+**Knowledge Mode:**
+```json
+{
+  "session_id": "uuid-string",
+  "message": "Obligation Tracking in Conga CLM allows you to monitor contractual commitments...",
+  "mode": "knowledge",
+  "done": true
+}
+```
+
+### File Responsibilities
+
+| File | Purpose |
+|------|---------|
+| `server.py` | FastAPI app (port 8001), CORS middleware, `/api/process` + `/health` endpoints |
+| `agent.py` | Main orchestration — intent classification → routing → plan → execute → recover |
+| `config.py` | Pydantic settings (OpenAI key, model, host, port from `.env`) |
+| `agents/intent_classifier.py` | LLM-based intent detection with confidence score |
+| `agents/planner.py` | Generates business-level step plan using RAG context |
+| `agents/executor.py` | Maps one step to one UI action using DOM snapshot |
+| `agents/recovery.py` | Failure recovery: alt selectors, scroll, wait, navigate, ask user |
+| `agents/guide_agent.py` | Generates highlighted step-by-step guide |
+| `memory/session_store.py` | In-memory session store with TTL expiry (30 min) |
+| `rag/ingest.py` | Multi-source document ingestion (local + URL + sitemap) |
+| `rag/retriever.py` | ChromaDB vector retrieval |
+| `rag/hybrid_search.py` | BM25 + Vector search with Reciprocal Rank Fusion |
+| `rag/sources.json` | Configurable knowledge source definitions |
+| `schemas/request.py` | Pydantic models for incoming requests |
+| `schemas/response.py` | Pydantic models for outgoing responses |
+| `prompts/*.md` | System prompts for each agent |
+
+### How to Run
+
+```bash
+cd orchestrator
+pip install -r requirements.txt
+copy .env.example .env          # Add your OPENAI_API_KEY
+python -m rag.ingest             # Ingest KT docs (once, optional)
+python -m uvicorn server:app --port 8001 --reload
+```
 
 ### Prerequisites
 - Python 3.11+
 - OpenAI API key (GPT-4o recommended)
 
-### Step-by-Step Build
-
-#### Step 1: Setup
+### Testing the Orchestrator
 
 ```bash
-cd orchestrator
-pip install langchain langchain-openai langchain-community chromadb tiktoken pypdf fastapi uvicorn
-```
-
-#### Step 2: Knowledge Ingestion
-
-`rag/ingest.py`:
-```python
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, DirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
-import os
-
-PERSIST_DIR = os.path.join(os.path.dirname(__file__), "vector_store")
-KNOWLEDGE_DIR = os.path.join(os.path.dirname(__file__), "..", "knowledge-base", "docs")
-
-def ingest_documents():
-    """Load KT docs and create vector store"""
-    pdf_loader = DirectoryLoader(KNOWLEDGE_DIR, glob="**/*.pdf", loader_cls=PyPDFLoader)
-    txt_loader = DirectoryLoader(KNOWLEDGE_DIR, glob="**/*.md", loader_cls=TextLoader)
-
-    docs = pdf_loader.load() + txt_loader.load()
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
-        separators=["\n## ", "\n### ", "\n\n", "\n", " "]
-    )
-    chunks = splitter.split_documents(docs)
-
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory=PERSIST_DIR
-    )
-
-    print(f"Ingested {len(chunks)} chunks from {len(docs)} documents")
-    return vectorstore
-
-if __name__ == "__main__":
-    ingest_documents()
-```
-
-#### Step 3: RAG Retriever
-
-`rag/retriever.py`:
-```python
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
-import os
-
-PERSIST_DIR = os.path.join(os.path.dirname(__file__), "vector_store")
-
-def get_retriever():
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    vectorstore = Chroma(
-        persist_directory=PERSIST_DIR,
-        embedding_function=embeddings
-    )
-    return vectorstore.as_retriever(search_kwargs={"k": 3})
-
-def retrieve_context(query: str) -> str:
-    """Get relevant KT knowledge for the user's query"""
-    retriever = get_retriever()
-    docs = retriever.invoke(query)
-    if not docs:
-        return "No relevant documentation found."
-    return "\n\n---\n\n".join([doc.page_content for doc in docs])
-```
-
-#### Step 4: System Prompt
-
-`prompts/system_prompt.md`:
-```markdown
-You are SAARTHI AI, an intelligent assistant for Conga CLM (Contract Lifecycle Management).
-
-You help users by either GUIDING them through steps or PERFORMING actions automatically.
-
-## Rules:
-1. You MUST respond with valid JSON matching the response schema exactly.
-2. You can ONLY use actions from the allowed vocabulary: click, type, select, scroll, wait, navigate.
-3. You MUST use selectors from the provided DOM snapshot. Never invent selectors.
-4. If you cannot find the right element, ask the user to clarify or navigate to the correct page.
-5. For Guide mode: provide clear step-by-step instructions with highlight selectors.
-6. For Action mode: provide executable action steps.
-7. Set "done": true only when the task is fully complete.
-8. Set "done": false if you need to see the updated DOM after actions execute.
-9. Keep messages concise and helpful (spoken aloud to user).
-
-## Available Actions:
-- click: { "type": "click", "selector": "...", "description": "..." }
-- type: { "type": "type", "selector": "...", "value": "...", "description": "..." }
-- select: { "type": "select", "selector": "...", "value": "...", "description": "..." }
-- scroll: { "type": "scroll", "direction": "down|up", "amount": 300 }
-- wait: { "type": "wait", "duration_ms": 500 }
-- navigate: { "type": "navigate", "url": "..." }
-```
-
-#### Step 5: Main Orchestrator Agent
-
-`agent.py`:
-```python
-import json
-import os
-from openai import AsyncOpenAI
-from rag.retriever import retrieve_context
-
-client = AsyncOpenAI()
-
-SYSTEM_PROMPT = open(
-    os.path.join(os.path.dirname(__file__), "prompts", "system_prompt.md")
-).read()
-
-async def process_request(request: dict) -> dict:
-    """Main orchestration: RAG + LLM → structured action plan"""
-
-    # 1. Retrieve relevant KT knowledge
-    rag_context = retrieve_context(request["user_input"])
-
-    # 2. Build prompt with DOM context
-    user_message = build_user_message(request, rag_context)
-
-    # 3. Call LLM
-    response = await client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message}
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.1
-    )
-
-    # 4. Parse LLM response
-    result = json.loads(response.choices[0].message.content)
-    result["session_id"] = request["session_id"]
-    return result
-
-
-def build_user_message(request: dict, rag_context: str) -> str:
-    elements_str = json.dumps(request["context"]["interactive_elements"], indent=2)
-
-    error_info = ""
-    if request.get("error_from_last_action"):
-        error_info = f"\n\n## Error from Last Action:\n{request['error_from_last_action']}"
-
-    return f"""## User Request
-"{request['user_input']}"
-
-## Mode
-{request['mode']}
-
-## Current Page
-- URL: {request['context']['url']}
-- Title: {request['context']['page_title']}
-- Visible Content: {request['context']['visible_text_summary']}
-
-## Interactive Elements on Screen
-{elements_str}
-
-## Relevant Knowledge Base Context
-{rag_context}
-{error_info}
-
-## Previous Actions Taken
-{json.dumps(request.get('previous_actions', []), indent=2)}
-
-## Instructions
-Respond with a JSON object containing: message, actions (for action mode) OR guide_steps (for guide mode), done (boolean), follow_up (string or null).
-Each action must use a selector from the Interactive Elements list above.
-"""
-```
-
-#### Step 6: FastAPI Server (Your Entry Point)
-
-Create a FastAPI server that wraps the agent:
-
-```python
-# orchestrator/server.py
-from fastapi import FastAPI
-from agent import process_request
-
-app = FastAPI(title="SAARTHI AI Orchestrator", version="1.0.0")
-
-@app.post("/api/process")
-async def process(request: dict):
-    result = await process_request(request)
-    return result
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=True)
-```
-
-Run with:
-```bash
-cd orchestrator
-python -m uvicorn server:app --port 8001
-```
-
-#### Step 7: Add KT Documents
-
-Place Conga CLM documentation in `orchestrator/knowledge-base/docs/`:
-- Process guides (how to create contracts, manage obligations)
-- UI navigation docs
-- Video transcripts
-- FAQ documents
-
-Then run: `python -m rag.ingest`
-
-### Testing Your Orchestrator Independently
-
-```bash
-curl -X POST http://localhost:8001/api/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id": "test-1",
-    "user_input": "Show today contracts",
-    "mode": "action",
-    "context": {
-      "url": "https://app.congaclm.com/agreements",
-      "page_title": "Agreements",
-      "interactive_elements": [
-        {"id": "el-1", "tag": "button", "text": "Filter", "selector": "[data-testid=filter-btn]", "visible": true}
-      ],
-      "visible_text_summary": "Showing 25 agreements"
-    },
-    "previous_actions": [],
-    "error_from_last_action": null
-  }'
+curl -X POST http://localhost:8001/api/process ^
+  -H "Content-Type: application/json" ^
+  -d "{\"session_id\": \"test-1\", \"user_input\": \"Show today contracts\", \"mode\": \"action\", \"context\": {\"url\": \"https://app.congaclm.com/agreements\", \"page_title\": \"Agreements\", \"interactive_elements\": [{\"id\": \"el-1\", \"tag\": \"button\", \"text\": \"Filter\", \"selector\": \"[data-testid=filter-btn]\", \"visible\": true}], \"visible_text_summary\": \"Showing 25 agreements\"}, \"previous_actions\": [], \"error_from_last_action\": null}"
 ```
 
 ---
 
-## Integration Checklist (When Gautam Is Ready)
+## Integration Checklist
 
-| # | Task | Who | What to do |
-|---|------|-----|-----------|
-| 1 | Start orchestrator on port 8001 | Gautam | `python -m uvicorn server:app --port 8001` |
-| 2 | Extension auto-connects | Shivam | No code changes — `api-client.js` already tries `localhost:8001` first |
-| 3 | Verify response schema | All | Ensure orchestrator returns exact JSON format above |
-| 4 | Tune selectors | Gautam | Use actual selectors from `interactive_elements` in DOM snapshot |
-| 5 | Test on real Conga CLM | All | Extension sends real DOM → orchestrator returns real actions |
+| # | Task | Who | Status |
+|---|------|-----|--------|
+| 1 | Start speech module on port 8000 | Rohit | ✅ Done |
+| 2 | Start orchestrator on port 8001 | Gautam | ✅ Done — `python -m uvicorn server:app --port 8001` |
+| 3 | Extension auto-connects | Shivam | ✅ No code changes — `api-client.js` tries `localhost:8001` first |
+| 4 | Verify response schema | All | ✅ Pydantic models enforce exact JSON format |
+| 5 | Ingest Conga CLM KT docs | Gautam | 🟡 Add URLs/docs to `rag/sources.json` and run `python -m rag.ingest` |
+| 6 | Test on real Conga CLM | All | Extension sends real DOM → orchestrator returns real actions |
 
 **Key point:** The extension automatically falls back to mock when the orchestrator is unavailable. Once Gautam's server is running on port 8001, it will be used immediately — zero code changes needed.
 
@@ -602,11 +557,12 @@ pip install -r requirements.txt
 copy .env.example .env
 python -m uvicorn main:app --port 8000
 
-# Orchestrator — Gautam's AI Engine
+# Orchestrator — Gautam's Agentic AI Engine
 cd orchestrator
-pip install langchain langchain-openai chromadb tiktoken pypdf fastapi uvicorn
-python -m rag.ingest          # Ingest KT docs (once)
-python -m uvicorn server:app --port 8001
+pip install -r requirements.txt
+copy .env.example .env         # Add OPENAI_API_KEY
+python -m rag.ingest            # Ingest KT docs + URLs (once)
+python -m uvicorn server:app --port 8001 --reload
 
 # Extension — Shivam
 # Chrome → chrome://extensions → Developer mode → Load unpacked → select extension/
@@ -615,4 +571,4 @@ python -m uvicorn server:app --port 8001
 
 ---
 
-*Last updated: June 3, 2026 | Team: Shivam (✅), Rohit (✅), Gautam (🟡)*
+*Last updated: June 3, 2026 | Team: Shivam (✅), Rohit (✅), Gautam (✅)*
