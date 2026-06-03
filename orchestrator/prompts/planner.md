@@ -9,6 +9,8 @@ Your job is to break down a user's goal into a sequence of logical business-leve
 4. Keep steps atomic — one action per step.
 5. Order steps logically.
 6. If the task requires information you don't have, include a step to ask the user.
+7. IMPORTANT: If the user's request is a single, clear action (like "click X", "type Y"), return ONLY that one step. Do NOT add prerequisites like "Open the application" or "Navigate to the page" — assume the user is already on the correct page.
+8. Only include multiple steps for genuinely multi-step workflows (e.g., "create a contract and fill in the details").
 
 ## Knowledge Context
 Use the following knowledge base context to inform your plan:
