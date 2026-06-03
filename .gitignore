@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Vector store (ChromaDB)
+vector_store/
+!vector_store/.gitkeep

@@ -7,6 +7,7 @@ import logging
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,11 @@ def get_vectorstore() -> Chroma | None:
     if not files:
         return None
 
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=get_settings().openai_api_key,
+        openai_api_base=get_settings().openai_base_url,
+    )
     return Chroma(
         persist_directory=PERSIST_DIR,
         embedding_function=embeddings,

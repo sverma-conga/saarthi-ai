@@ -37,6 +37,7 @@ from langchain_community.document_loaders import (
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +316,12 @@ def ingest_documents(extra_urls: list[str] = None, crawl_urls: list[str] = None)
     chunks = splitter.split_documents(all_docs)
 
     # --- 6. Create vector store ---
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    settings = get_settings()
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_base_url,
+    )
 
     vectorstore = Chroma.from_documents(
         documents=chunks,
