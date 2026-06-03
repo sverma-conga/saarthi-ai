@@ -1,0 +1,31 @@
+# SAARTHI AI Orchestrator
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# OpenAI
+openai>=1.30.0
+
+# LangChain (RAG)
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-community>=0.2.0
+
+# Vector store
+chromadb>=0.5.0
+
+# Document loaders
+pypdf>=4.0.0
+tiktoken>=0.7.0
+
+# Web scraping (for URL/sitemap/crawl ingestion)
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+requests>=2.31.0
+
+# BM25 for hybrid search
+rank-bm25>=0.2.2
+
+# Utilities
+python-dotenv>=1.0.0

@@ -1,0 +1,47 @@
+{
+  "description": "Knowledge sources for SAARTHI AI RAG engine. Add URLs, local files, or directories here.",
+  "sources": [
+    {
+      "type": "directory",
+      "path": "knowledge-base/docs",
+      "description": "Local KT documents (PDF, MD, TXT)",
+      "enabled": true
+    },
+    {
+      "type": "crawl",
+      "url": "https://documentation.conga.com/en/clm-for-advantage-platform/current/clm-for-users/",
+      "description": "Conga CLM for Users — Full documentation (auto-crawled)",
+      "max_pages": 50,
+      "enabled": true
+    }
+  ],
+  "_example_sources": [
+    {
+      "type": "url",
+      "url": "https://documentation.conga.com/en/clm-for-advantage-platform/current/clm-for-users/agreements",
+      "description": "Single page — Conga CLM Agreements",
+      "enabled": true
+    },
+    {
+      "type": "crawl",
+      "url": "https://documentation.conga.com/en/clm-for-advantage-platform/current/",
+      "description": "Crawl entire CLM Advantage Platform docs",
+      "max_pages": 100,
+      "enabled": false
+    },
+    {
+      "type": "sitemap",
+      "url": "https://documentation.conga.com/sitemap.xml",
+      "description": "Conga full documentation sitemap",
+      "filter_pattern": "/clm/",
+      "max_pages": 50,
+      "enabled": false
+    },
+    {
+      "type": "file",
+      "path": "knowledge-base/docs/custom-guide.pdf",
+      "description": "Custom internal guide",
+      "enabled": true
+    }
+  ]
+}
